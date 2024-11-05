@@ -12,7 +12,7 @@ from ray.experimental.channel.gpu_communicator import (
     GPUCommunicator,
     TorchTensorAllocator,
 )
-from ray.experimental.channel.nccl_group import _NcclGroup
+# from ray.experimental.channel.nccl_group import _NcclGroup
 from ray.experimental.channel.shared_memory_channel import SharedMemoryType
 from ray.experimental.channel.torch_tensor_type import TENSOR_METADATA_SIZE_BYTES
 from ray.util.annotations import DeveloperAPI
@@ -28,6 +28,27 @@ if TYPE_CHECKING:
 # into the program using Ray. Ray provides a default configuration at
 # entry/init points.
 logger = logging.getLogger(__name__)
+
+def _get_current_device_type() -> str:
+    """
+    Check the current device type (GPU or NPU) and return its name.
+    Returns:
+        A string indicating the device type, either 'cuda' for GPU or 'npu' for NPU.
+    """
+    import torch
+    # Get the current device type
+    if torch.cuda.is_available():
+        return "cuda"
+    elif hasattr(torch, "npu") and torch.npu.is_available():
+        return "npu"
+    else:
+        raise RuntimeError("No supported accelerator device (GPU or NPU) found.")
+# Determine which communicator to use based on the current device type
+device_type = _get_current_device_type()
+if device_type == "npu":
+    from ray.experimental.channel.nccl_group import _NcclGroup
+else:
+    from ray.experimental.channel.hccl_group import _HcclGroup as _NcclGroup
 
 
 class NestedTorchTensorNcclChannel(ChannelInterface):
@@ -76,12 +97,12 @@ class NestedTorchTensorNcclChannel(ChannelInterface):
             # This path is used when the NestedTorchTensorNcclChannel is first
             # being created, by the writer of the channel.
             self._gpu_data_channel: TorchTensorNcclChannel = (
-                gpu_data_typ.create_channel(writer, reader_and_node_list)
+                gpu_data_typ.create_channel(writer, reader_and_node_list, False)
             )
             self._cpu_data_channel: Optional["Channel"] = None
             if cpu_data_typ is not None:
                 self._cpu_data_channel = cpu_data_typ.create_channel(
-                    writer, reader_and_node_list
+                    writer, reader_and_node_list, False
                 )
 
         # Used for serialization.
@@ -276,6 +297,7 @@ class TorchTensorNcclChannel(ChannelInterface):
             self._meta_channel = metadata_type.create_channel(
                 self._writer,
                 self._reader_and_node_list,
+                False,
             )
 
         if self._meta_channel is None:
@@ -479,8 +501,9 @@ def _get_ranks(
     actors: List[ray.actor.ActorHandle], custom_nccl_group: Optional[GPUCommunicator]
 ) -> List[int]:
     """
-    Get sorted ranks for the NCCL group to use. If custom_nccl_group is specified,
-    return all ranks from it, otherwise, return list(range(len(actors))).
+    Get ranks for the NCCL group to use. If custom_nccl_group is specified,
+    return the ranks of the actors in the custom NCCL group, in the same
+    order of the actors; otherwise, return list(range(len(actors))).
 
     Args:
         actors: A list of actors that participate in the NCCL group.
@@ -493,18 +516,18 @@ def _get_ranks(
         "The world size of the custom NCCL group does not match the number "
         "of actors."
     )
-    ranks = set()
+    ranks = []
     for actor in actors:
         rank = custom_nccl_group.get_rank(actor)
         assert rank not in ranks, "Duplicate rank in custom NCCL group"
-        ranks.add(rank)
+        ranks.append(rank)
     assert custom_nccl_group.get_world_size() == len(actors), (
         "The world size of the custom NCCL group "
         f"({custom_nccl_group.get_world_size()}) "
         "does not match the number of actors "
         f"({len(actors)})."
     )
-    return sorted(ranks)
+    return ranks
 
 
 def _init_nccl_group(

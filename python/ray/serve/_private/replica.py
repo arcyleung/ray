@@ -336,16 +336,17 @@ class ReplicaMetricsManager:
 
     def _push_autoscaling_metrics(self) -> Dict[str, Any]:
         look_back_period = self._autoscaling_config.look_back_period_s
-        window_start = time.time() - look_back_period
-        self._metrics_store.prune_keys_and_compact_data(window_start)
+        now = time.time()
+        window_start = now - look_back_period
 
+        self._metrics_store.prune_keys_and_compact_data(window_start)
         self._controller_handle.record_autoscaling_metrics.remote(
             replica_id=self._replica_id,
             window_avg=self._metrics_store.window_average(
                 self._replica_id, window_start
             ),
             metrics=self._metrics_store.data,
-            send_timestamp=time.time(),
+            send_timestamp=now,
         )
 
     def _replica_ongoing_requests(self) -> Dict[ReplicaID, int]:

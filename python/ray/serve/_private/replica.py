@@ -49,6 +49,7 @@ from ray.serve._private.common import (
 )
 from ray.serve._private.config import DeploymentConfig
 from ray.serve._private.constants import (
+    DEFAULT_LATENCY_BUCKET_MS,
     GRPC_CONTEXT_ARG_NAME,
     HEALTH_CHECK_METHOD,
     RAY_SERVE_AUTOSCALING_STATS_METHOD,
@@ -225,6 +226,11 @@ class ReplicaMetricsManager:
             "serve_replica_processing_queries",
             description="The current number of queries being processed.",
         )
+        self.autoscaling_metrics_latency_ms = metrics.Histogram(
+            "serve_autoscaling_metrics_processing_latency_ms",
+            description="The latency for autoscaling_metrics to be processed.",
+            boundaries=DEFAULT_LATENCY_BUCKET_MS,
+        )
 
         self.set_autoscaling_config(autoscaling_config)
         self.user_callable_wrapper = user_callable_wrapper
@@ -348,6 +354,10 @@ class ReplicaMetricsManager:
             metrics=self._metrics_store.data,
             send_timestamp=now,
         )
+
+        duration_ms = (time.time() - now) * 1000
+        # logger.info(f"Observed autoscaling metrics latency: {duration_ms}ms")
+        self.autoscaling_metrics_latency_ms.observe(duration_ms)
 
     def _replica_ongoing_requests(self) -> Dict[ReplicaID, int]:
         return {self._replica_id: self._num_ongoing_requests}

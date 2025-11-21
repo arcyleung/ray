@@ -1,0 +1,34 @@
+{
+  "timestamp": 1763751037.4694371,
+  "test_config": {
+    "rate": 20.0,
+    "duration": 60.0,
+    "sla_threshold_ms": 2000
+  },
+  "results": {
+    "standard_sequential_app": {
+      "total_requests": 29,
+      "avg_latency_ms": 2025.461065358129,
+      "p50_latency_ms": 1919.6100234985352,
+      "p95_latency_ms": 3077.6410102844234,
+      "p99_latency_ms": 3339.837951660156,
+      "sla_violation_rate": 0.41379310344827586,
+      "sla_violations": 12,
+      "successes": 29,
+      "failures": 0,
+      "success_rate": 1.0
+    },
+    "slack_sequential_app": {
+      "total_requests": 37,
+      "avg_latency_ms": 1564.918853141166,
+      "p50_latency_ms": 1498.9748001098633,
+      "p95_latency_ms": 2646.150970458984,
+      "p99_latency_ms": 2763.217887878418,
+      "sla_violation_rate": 0.21621621621621623,
+      "sla_violations": 8,
+      "successes": 37,
+      "failures": 0,
+      "success_rate": 1.0
+    }
+  }
+}

@@ -63,8 +63,8 @@ async def run_load_test(handle, rate: float, duration: float) -> Dict:
             results["latencies"].append(latency)
             results["successes"] += 1
 
-            # Check SLA violation (20 seconds)
-            if latency > 20000:
+            # Check SLA violation (2 seconds)
+            if latency > 2000:
                 results["sla_violations"] += 1
         else:
             results["failures"] += 1
@@ -130,7 +130,7 @@ async def main():
     print("=" * 70)
     print(f"Request rate: {args.rate} requests/second")
     print(f"Test duration: {args.duration} seconds per application")
-    print("Application SLA: 20 seconds end-to-end")
+    print("Application SLA: 2 seconds end-to-end")
     print("-" * 70)
 
     # Connect to existing Ray and Serve
@@ -184,7 +184,7 @@ async def main():
         "test_config": {
             "rate": args.rate,
             "duration": args.duration,
-            "sla_threshold_ms": 20000,
+            "sla_threshold_ms": 2000,
         },
         "results": all_results,
     }

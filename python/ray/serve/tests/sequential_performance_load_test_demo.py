@@ -81,7 +81,7 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
             weight = 0.0
 
         # Calculate the time allocated to this deployment in the sequential chain
-        application_sla_ms = 20000.0  # 20 seconds total application SLA
+        application_sla_ms = 2000.0  # 2 seconds total application SLA
         buffer_ms = 1000.0  # 1 second buffer
         time_allocation = (application_sla_ms * weight) - buffer_ms
 
@@ -324,8 +324,8 @@ class MetricsCollector:
         self.application_metrics["end_to_end_latencies"].append(latency_ms)
         self.application_metrics["total_requests"] += 1
 
-        # Check SLA violation (20 seconds for the entire pipeline)
-        if latency_ms > 20000.0:
+        # Check SLA violation (2 seconds for the entire pipeline)
+        if latency_ms > 2000.0:
             self.application_metrics["sla_violations"] += 1
 
     def record_replica_count(self, deployment_name: str, count: int):
@@ -434,14 +434,15 @@ class MetricsCollector:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class StandardModel1Deployment:
     """First model deployment with standard autoscaling policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=3000,  # 3 seconds base time
-            variance_ms=2000,  # 2 seconds variance
+            base_processing_time_ms=300,  # 3 seconds base time
+            variance_ms=200,  # 2 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -471,14 +472,15 @@ class StandardModel1Deployment:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class StandardModel2Deployment:
     """Second model deployment with standard autoscaling policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=5000,  # 5 seconds base time
-            variance_ms=3000,  # 3 seconds variance
+            base_processing_time_ms=500,  # 5 seconds base time
+            variance_ms=300,  # 3 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -508,14 +510,15 @@ class StandardModel2Deployment:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class StandardModel3Deployment:
     """Third model deployment with standard autoscaling policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=4000,  # 4 seconds base time
-            variance_ms=2500,  # 2.5 seconds variance
+            base_processing_time_ms=400,  # 4 seconds base time
+            variance_ms=250,  # 2.5 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -534,7 +537,7 @@ class StandardModel3Deployment:
 
 
 # Chain Deployment for Standard Autoscaling
-@serve.deployment(name="standard_chain")
+@serve.deployment(name="standard_chain", ray_actor_options={"num_cpus": 0.01})
 class StandardChainDeployment:
     """Chain deployment that orchestrates sequential calls to all three models."""
 
@@ -583,14 +586,15 @@ class StandardChainDeployment:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class SlackModel1Deployment:
     """First model deployment that will use app-level RemainingSlack policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=3000,  # 3 seconds base time
-            variance_ms=2000,  # 2 seconds variance
+            base_processing_time_ms=300,  # 3 seconds base time
+            variance_ms=200,  # 2 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -620,14 +624,15 @@ class SlackModel1Deployment:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class SlackModel2Deployment:
     """Second model deployment that will use app-level RemainingSlack policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=5000,  # 5 seconds base time
-            variance_ms=3000,  # 3 seconds variance
+            base_processing_time_ms=500,  # 5 seconds base time
+            variance_ms=300,  # 3 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -657,14 +662,15 @@ class SlackModel2Deployment:
         "look_back_period_s": 2,
         "target_ongoing_requests": 5,
     },
+    ray_actor_options={"num_cpus": 0.01}
 )
 class SlackModel3Deployment:
     """Third model deployment that will use app-level RemainingSlack policy."""
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=4000,  # 4 seconds base time
-            variance_ms=2500,  # 2.5 seconds variance
+            base_processing_time_ms=400,  # 4 seconds base time
+            variance_ms=250,  # 2.5 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -683,7 +689,7 @@ class SlackModel3Deployment:
 
 
 # Chain Deployment for RemainingSlack Autoscaling
-@serve.deployment(name="slack_chain")
+@serve.deployment(name="slack_chain", ray_actor_options={"num_cpus": 0.01})
 class SlackChainDeployment:
     """Chain deployment that orchestrates sequential calls to all three models."""
 
@@ -920,12 +926,12 @@ def create_latency_histogram_plot(
     fig.update_yaxes(title_text="Number of Requests", row=1, col=1)
     fig.update_yaxes(title_text="Number of Requests", row=2, col=1)
 
-    # Add SLA line for end-to-end (20 seconds)
+    # Add SLA line for end-to-end (2 seconds)
     fig.add_vline(
-        x=20000,
+        x=2000,
         line_dash="dash",
         line_color="red",
-        annotation_text="SLA (20s)",
+        annotation_text="SLA (2s)",
         annotation_position="top right",
         row=2,
         col=1,
@@ -948,7 +954,7 @@ async def run_sequential_performance_test(
     print("Testing 3-stage model pipeline (Model1 -> Model2 -> Model3)")
     print(f"Request rate: {request_rate} requests/second")
     print(f"Test duration: {duration} seconds")
-    print("Application SLA: 20 seconds end-to-end")
+    print("Application SLA: 2 seconds end-to-end")
     print("-" * 70)
 
     # Deploy standard models and chain in the same application

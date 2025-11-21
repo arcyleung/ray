@@ -41,39 +41,70 @@ async def send_request(handle) -> Tuple[float, bool]:
 
 
 async def run_load_test(handle, rate: float, duration: float) -> Dict:
-    """Run load test against a specific application handle."""
+    """Run load test against a specific application handle with concurrent requests."""
     results = {
         "latencies": [],
         "successes": 0,
         "failures": 0,
         "sla_violations": 0,
         "start_time": time.time(),
+        "request_timestamps": [],  # Track actual request times
     }
 
     # Calculate request interval
     interval = 1.0 / rate if rate > 0 else 0
+    print(f"DEBUG: Target rate: {rate} req/s, Target interval: {interval:.3f}s")
 
     end_time = time.time() + duration
-
-    while time.time() < end_time:
-        # Send request
-        latency, success = await send_request(handle)
-
-        if success:
-            results["latencies"].append(latency)
-            results["successes"] += 1
-
-            # Check SLA violation (2 seconds)
-            if latency > 2000:
-                results["sla_violations"] += 1
-        else:
-            results["failures"] += 1
-
-        # Wait for next request interval
-        if interval > 0:
-            await asyncio.sleep(interval)
-
+    pending_requests = []  # Store pending request futures
+    
+    try:
+        while time.time() < end_time:
+            # Record when we start sending this request
+            request_start_time = time.time()
+            results["request_timestamps"].append(request_start_time)
+            
+            # Send request asynchronously without waiting
+            request_future = asyncio.create_task(send_request(handle))
+            pending_requests.append((request_start_time, request_future))
+            
+            # Wait for the interval before sending the next request
+            if interval > 0:
+                await asyncio.sleep(interval)
+        
+        # Wait for all pending requests to complete
+        print(f"DEBUG: Waiting for {len(pending_requests)} pending requests to complete...")
+        for request_start_time, request_future in pending_requests:
+            try:
+                latency, success = await request_future
+                
+                if success:
+                    results["latencies"].append(latency)
+                    results["successes"] += 1
+                    
+                    # Check SLA violation (2 seconds)
+                    if latency > 2000:
+                        results["sla_violations"] += 1
+                else:
+                    results["failures"] += 1
+                    
+            except Exception as e:
+                print(f"Request failed with exception: {e}")
+                results["failures"] += 1
+                
+    except Exception as e:
+        print(f"Error in load test: {e}")
+    
     results["end_time"] = time.time()
+    
+    # Calculate actual achieved rate
+    if len(results["request_timestamps"]) > 1:
+        total_time = results["request_timestamps"][-1] - results["request_timestamps"][0]
+        actual_rate = (len(results["request_timestamps"]) - 1) / total_time if total_time > 0 else 0
+        print(f"DEBUG: Target rate: {rate} req/s, Actual rate: {actual_rate:.2f} req/s")
+        print(f"DEBUG: Total requests sent: {len(results['request_timestamps'])}")
+        print(f"DEBUG: Successful requests: {results['successes']}, Failed requests: {results['failures']}")
+    
     return results
 
 

@@ -29,6 +29,7 @@ from ray import serve
 from ray.serve._private.common import DeploymentID
 from ray.serve.config import AutoscalingContext, AutoscalingPolicy
 
+SLA_MS = 2000
 
 def app_level_sequential_remaining_slack_autoscaling_policy(
     ctxs: Dict[DeploymentID, AutoscalingContext]
@@ -63,25 +64,25 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
 
         # Calculate base processing time based on deployment name
         if "model1" in deployment_name.lower():
-            base_processing_time = 3000  # 3 seconds
+            base_processing_time = 300  # 3 seconds
             variability = 0.4  # 40% variability
             weight = 0.25  # 25% of total time budget
         elif "model2" in deployment_name.lower():
-            base_processing_time = 5000  # 5 seconds
+            base_processing_time = 500  # 5 seconds
             variability = 0.5  # 50% variability
             weight = 0.45  # 45% of total time budget (bottleneck)
         elif "model3" in deployment_name.lower():
-            base_processing_time = 4000  # 4 seconds
+            base_processing_time = 400  # 4 seconds
             variability = 0.45  # 45% variability
             weight = 0.3  # 30% of total time budget
         else:
             # Default for chain deployments
-            base_processing_time = 1000  # 1 second
+            base_processing_time = 100  # 1 second
             variability = 0.1  # 10% variability
             weight = 0.0
 
         # Calculate the time allocated to this deployment in the sequential chain
-        application_sla_ms = 2000.0  # 2 seconds total application SLA
+        application_sla_ms = SLA_MS
         buffer_ms = 1000.0  # 1 second buffer
         time_allocation = (application_sla_ms * weight) - buffer_ms
 
@@ -324,8 +325,8 @@ class MetricsCollector:
         self.application_metrics["end_to_end_latencies"].append(latency_ms)
         self.application_metrics["total_requests"] += 1
 
-        # Check SLA violation (2 seconds for the entire pipeline)
-        if latency_ms > 2000.0:
+        # Check SLA violation
+        if latency_ms > SLA_MS:
             self.application_metrics["sla_violations"] += 1
 
     def record_replica_count(self, deployment_name: str, count: int):
@@ -928,7 +929,7 @@ def create_latency_histogram_plot(
 
     # Add SLA line for end-to-end (2 seconds)
     fig.add_vline(
-        x=2000,
+        x=SLA_MS,
         line_dash="dash",
         line_color="red",
         annotation_text="SLA (2s)",
@@ -1039,45 +1040,69 @@ async def run_sequential_performance_test(
     request_id = 0
 
     async def generate_requests(handle, generator, deployment_name):
-        """Generate requests for a deployment."""
+        """Generate concurrent requests for a deployment at the specified rate."""
         nonlocal metrics, request_id
+        request_count = 0
+        request_start_times = []
+        pending_requests = []  # Store pending request futures
 
-        while time.time() - start_time < duration:
-            request_id += 1
-            request_data = {"request_id": request_id}
+        try:
+            while time.time() - start_time < duration:
+                request_id += 1
+                request_count += 1
+                request_data = {"request_id": request_id}
+                
+                # Record when we start sending this request
+                request_start_time = time.time()
+                request_start_times.append(request_start_time)
 
-            # Send request
-            result = handle.remote(request_data)
+                # Send request asynchronously without waiting
+                request_future = handle.remote(request_data)
+                pending_requests.append((request_start_time, request_data, request_future))
+                
+                # Get the target interval from generator and wait
+                target_interval = generator.get_next_interval()
+                if target_interval > 0:
+                    await asyncio.sleep(target_interval)
+            
+            # Wait for all pending requests to complete and record metrics
+            print(f"DEBUG [{deployment_name}]: Waiting for {len(pending_requests)} pending requests to complete...")
+            for request_start_time, request_data, request_future in pending_requests:
+                try:
+                    response = await request_future
 
-            # Record metrics when result is ready
-            try:
-                response = await result
+                    # Record end-to-end latency
+                    metrics.record_end_to_end_latency(response["end_to_end_latency_ms"])
 
-                # Record end-to-end latency
-                metrics.record_end_to_end_latency(response["end_to_end_latency_ms"])
+                    # Record individual stage latencies
+                    metrics.record_latency(
+                        f"{deployment_name}_model1", response["model1_latency_ms"]
+                    )
+                    metrics.record_latency(
+                        f"{deployment_name}_model2", response["model2_latency_ms"]
+                    )
+                    metrics.record_latency(
+                        f"{deployment_name}_model3", response["model3_latency_ms"]
+                    )
 
-                # Record individual stage latencies
-                metrics.record_latency(
-                    f"{deployment_name}_model1", response["model1_latency_ms"]
-                )
-                metrics.record_latency(
-                    f"{deployment_name}_model2", response["model2_latency_ms"]
-                )
-                metrics.record_latency(
-                    f"{deployment_name}_model3", response["model3_latency_ms"]
-                )
-
-            except Exception as e:
-                print(f"Request failed: {e}")
-                # Record timeout as high latency
-                metrics.record_end_to_end_latency(30000.0)  # 30 second timeout
-                metrics.record_latency(f"{deployment_name}_model1", 10000.0)
-                metrics.record_latency(f"{deployment_name}_model2", 10000.0)
-                metrics.record_latency(f"{deployment_name}_model3", 10000.0)
-
-            # Wait for next request interval
-            interval = generator.get_next_interval()
-            await asyncio.sleep(interval)
+                except Exception as e:
+                    print(f"Request failed: {e}")
+                    # Record timeout as high latency
+                    metrics.record_end_to_end_latency(30000.0)  # 30 second timeout
+                    metrics.record_latency(f"{deployment_name}_model1", 10000.0)
+                    metrics.record_latency(f"{deployment_name}_model2", 10000.0)
+                    metrics.record_latency(f"{deployment_name}_model3", 10000.0)
+        
+        except Exception as e:
+            print(f"Error in generate_requests for {deployment_name}: {e}")
+        
+        # Calculate actual achieved rate for this deployment
+        if len(request_start_times) > 1:
+            total_time = request_start_times[-1] - request_start_times[0]
+            actual_rate = (len(request_start_times) - 1) / total_time if total_time > 0 else 0
+            target_rate = generator.rate_per_second
+            print(f"DEBUG [{deployment_name}]: Target rate: {target_rate} req/s, Actual rate: {actual_rate:.2f} req/s")
+            print(f"DEBUG [{deployment_name}]: Total requests sent: {len(request_start_times)}")
 
     async def monitor_replicas():
         """Monitor replica counts for all deployments."""

@@ -6,27 +6,28 @@ In the world of machine learning serving, latency unpredictability is a constant
 
 Traditional autoscaling approaches, which typically rely on queue length metrics, often fall short in these scenarios. They react to problems rather than anticipating them, leading to delayed scaling decisions and poor SLA compliance.
 
-A recent addition to [Ray Serve v2.51](https://github.com/ray-project/ray/releases/tag/ray-2.51.0). custom autoscaling API enables a sophisticated SLA-aware approach called the "RemainingSlack" policy, which dramatically improves performance for sequential deployments with unpredictable latency patterns.
+A recent addition to [Ray Serve v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) custom autoscaling API. We will be showcasing this API to implement a SLA-aware autoscaling policy called "RemainingSlack", which improves performance for sequential deployments with unpredictable latency patterns.
 
 ## The Challenge: Sequential ML Pipelines with Unpredictable Latency
 
 ### Understanding the Problem
 
-Consider a typical ML inference pipeline:
+The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. The goal was to serve all customers efficiently and adhere to the SLAs in this multi-tenant environment. 
 
-```
+```bash
+# Example of a sequential FM workflow
 Request → Model 1 → Model 2 → Model 3 → Response
 ```
 
-Each model in this chain has different characteristics:
+Each model/deployment in this sequential chain may have different latency characteristics, to illustrate as an example:
 - **Model 1**: Fast preprocessing (3s base, 40% variability)
-- **Model 2**: Heavy computation (5s base, 50% variability) - the bottleneck
+- **Model 2**: Heavy model inference (5s base, 50% variability) - the bottleneck
 - **Model 3**: Post-processing (4s base, 45% variability)
 
 With an end-to-end SLA of 3 seconds, this pipeline is already challenging. But when you add:
 - **High variability**: Processing times can spike 2-3x due to input complexity
-- **Load fluctuations**: Request rates can vary from 5 to 30+ requests/second
-- **Resource contention**: Multiple models competing for the same compute resources
+- **Load fluctuations**: Request rates can vary from 5 to 30+ requests/second 
+- **Resource contention**: Multiple models being loaded concurrently, contesting for the same memory bandwidth
 
 Traditional autoscaling struggles because it only sees local conditions (queue length at each deployment) without understanding the global SLA constraints.
 
@@ -38,16 +39,16 @@ The performance comparison was conducted using the benchmark script [`run_sequen
 - **Spike generation** to simulate real-world unpredictability
 - **Sequential pipeline orchestration** through chain deployments
 
-The results are captured in [`sequential_load_test_sweep_results_1763763808.json`](sequential_load_test_sweep_results_1763763808.json:1), showing comprehensive performance metrics across all test conditions.
+The results are captured in [`sequential_load_test_sweep_results_1763763808.json`](sequential_load_test_sweep_results_1763763808.json:1), showing the following key metrics: `avg_latency_ms`, `p95_latency_ms`, and most importantly `sla_violation_rate`
 
 ## Traditional Autoscaling: The Queue Length Approach
 
 ### How It Works
 
-Standard Ray Serve autoscaling uses a reactive approach based on queue length:
+Default Ray Serve autoscaling uses a reactive approach based on queue length:
 
 ```python
-# Standard autoscaling configuration
+# Default autoscaling configuration
 autoscaling_config = {
     "min_replicas": 1,
     "max_replicas": 10,
@@ -57,26 +58,28 @@ autoscaling_config = {
 }
 ```
 
-### Limitations
+### Pros and Cons
 
-1. **Reactive, not proactive**: Scales only after queues build up
-2. **Local optimization**: Each deployment scales independently
-3. **No SLA awareness**: Doesn't consider end-to-end latency requirements
-4. **Delayed response**: Built-in delays cause slow reactions to load changes
+| Pros | Cons |
+|------|------|
+| Simple to implement and understand | Reactive, not proactive: Scales only after queues build up |
+| Works well for independent services without complex dependencies | Local optimization: Each deployment scales independently |
+| Resource-efficient for predictable workloads | No SLA awareness: Doesn't consider end-to-end latency requirements |
+| Default approach with proven reliability in many scenarios | Delayed response: Built-in delays cause slow reactions to load changes |
 
-In sequential pipelines, these limitations are magnified. By the time Model 2 (the bottleneck) detects high queue length and scales up, Models 1 and 3 may have already processed requests that will now wait at Model 2, causing SLA violations.
+In long running and unpredictable pipelines, the drawbacks become evident. By the time Model 2 (the bottleneck) detects a high queue length and scales up, Models 1 and 3 may have already processed requests that will now wait at Model 2, causing SLA violations.
 
 ## The RemainingSlack Policy: SLA-Aware Autoscaling
 
 ### Core Concept
 
-The RemainingSlack policy, implemented in [`app_level_sequential_remaining_slack_autoscaling_policy()`](python/ray/serve/tests/sequential_performance_load_test_demo.py:34), takes a fundamentally different approach. Instead of reacting to queue lengths, it proactively manages resources based on **remaining time budget** relative to SLA requirements.
+The RemainingSlack policy, implemented in [`app_level_sequential_remaining_slack_autoscaling_policy()`](python/ray/serve/tests/sequential_performance_load_test_demo.py:34), takes a fundamentally different approach. Instead of reacting to queue lengths, it proactively manages resources based on **remaining time budget** (i.e., "slack") at each deployment, relative to the application level SLA requirements.
 
 ### How It Works
 
 #### 1. Time Budget Allocation
 
-The policy first allocates time budgets to each deployment based on their characteristics:
+The policy first profiles and allocates time budgets to each deployment based on their characteristics; apportioning fractions of the end-to-end SLA:
 
 ```python
 # Calculate time allocation for each deployment
@@ -91,9 +94,11 @@ model3_weight = 0.30  # 30% of time budget
 time_allocation = (total_sla_ms * weight) - buffer_ms
 ```
 
+Further optimizations may be made at this stage leveraging the workflow hot path based on past execution metrics.
+
 #### 2. Slack Calculation
 
-For each deployment, it calculates the "remaining slack" - the difference between allocated time and expected processing time:
+For each deployment at runtime, the replica computes and reports the "remaining slack" as requests arrive and become processed. It simply measures the difference between allocated time and expected processing time at each deployment:
 
 ```python
 # Account for processing variability
@@ -107,11 +112,11 @@ The scaling logic is sophisticated and context-aware:
 
 ```python
 if remaining_slack < 0 or avg_latency > time_allocation:
-    # Negative slack - scale up aggressively
+    # Negative slack: processing time exceeded allocated time, scale up aggressively
     urgency_factor = min(3.0, 1.0 + abs(remaining_slack) / base_processing_time)
     desired_replicas = min(max_replicas, int(current_replicas * urgency_factor) + 1)
 else:
-    # Positive slack - scale conservatively based on actual load
+    # Positive slack: processing time within allocated time, scale conservatively based on actual load
     if queue_length > 0:
         # Scale to handle queued requests
         desired_replicas = min(max_replicas, current_replicas + max(1, queue_length // 5))
@@ -125,18 +130,18 @@ else:
 
 ### Key Innovations
 
-1. **Proactive Scaling**: Scales up before SLA violations occur based on time budget analysis
-2. **Application-Level Awareness**: Considers the entire pipeline, not just individual deployments
+1. **Proactive Scaling**: Scales up before SLA violations occur based on slack-time at each deployment
+2. **Application-Level Awareness**: Considers the entire end-to-end application pipeline, not just individual deployments
 3. **Adaptive Urgency**: Scaling aggressiveness is proportional to SLA risk
-4. **Bottleneck Awareness**: Gives more resources to deployments that are performance bottlenecks
+4. **Bottleneck Awareness**: Assigns more resources to deployments that are performance bottlenecks
 
 ## Ray Serve's Custom Autoscaling API: The Enabler
 
-The magic behind this approach is Ray Serve's flexible custom autoscaling API, which allows developers to implement sophisticated scaling logic.
+The magic behind this approach is Ray Serve's flexible custom autoscaling API, which allows developers to implement any scaling logic they desire.
 
 ### API Structure
 
-The custom policy is defined as a function that receives autoscaling contexts for all deployments:
+The custom policy is defined as a function that takes a dictionary of autoscaling contexts across all deployments as input, and outputs the target scaling decisions keyed by DeploymentID (accompanied by Debug Information as the second item in the returned Tuple):
 
 ```python
 def app_level_sequential_remaining_slack_autoscaling_policy(
@@ -174,7 +179,7 @@ The benchmark results show compelling improvements across all metrics:
 
 ### SLA Violation Rate: 30-62% Improvement
 
-| Request Rate | Standard Policy | Slack Policy | Improvement |
+| Request Rate | Default Policy  | Slack Policy | Improvement |
 |--------------|-----------------|--------------|-------------|
 | 5 req/s      | 12.47%          | 7.80%        | 37.50%      |
 | 10 req/s     | 13.53%          | 8.72%        | 35.54%      |
@@ -287,27 +292,26 @@ serve deploy your_config.yaml
 
 Monitor the debug information returned by your policy to fine-tune the scaling logic.
 
-## Future Directions
-
-The RemainingSlack policy demonstrates the power of Ray Serve's custom autoscaling API. Future enhancements could include:
-
-1. **Machine Learning-Based Prediction**: Use historical data to predict processing times and load patterns
-2. **Cost-Aware Scaling**: Factor in cloud costs alongside SLA requirements
-3. **Multi-Application Coordination**: Coordinate scaling across multiple applications sharing resources
-4. **Dynamic SLA Adjustment**: Adapt SLA targets based on business priorities and system conditions
-
 ## Conclusion
 
-The RemainingSlack autoscaling policy represents a paradigm shift from reactive, queue-based scaling to proactive, SLA-aware resource management. By leveraging Ray Serve's custom autoscaling API, it achieves:
+The `RemainingSlack` autoscaling policy represents a paradigm shift from reactive, queue-based scaling to proactive, SLA-aware resource management. By leveraging Ray Serve's custom autoscaling API, it achieves:
 
-- **30-62% reduction in SLA violations**
+- **30-62% reduction in SLA violation rate**
 - **6-20% improvement in average latency**
 - **More consistent performance across load levels**
 - **Better resource utilization through intelligent scaling**
 
-For organizations serving ML models with unpredictable latency patterns - especially in sequential pipelines - this approach offers a path to significantly better performance and reliability. The combination of sophisticated policy logic and Ray Serve's flexible API creates a powerful platform for high-performance ML serving.
+In addition to customer SLAs, organizations may have other commitments (such as resource utilization, time-of-day scaling). Ray Serve's new custom autoscaling policy and metrics aggregations API empowers developers with unparalleled flexibility, to extract the best in both delivering performance to customers and outgoing costs. 
 
-The benchmark results clearly demonstrate that SLA-aware autoscaling isn't just a theoretical improvement - it delivers tangible, measurable benefits that can make the difference between meeting and missing critical service level agreements in production ML systems.
+## Future Directions
+
+The RemainingSlack policy demonstrates the power of Ray Serve's custom autoscaling API. Future enhancements could include:
+
+1. **Integration with thirdparty APIs**: [External monitoring and metrics sources](https://github.com/ray-project/ray/issues/41135#issue-1993639174) can be used in custom autoscaling policies to drive scaling decisions 
+2. **Cost-Aware Scaling**: Factor in cloud costs alongside SLA requirements
+3. **Multi-Application Coordination**: Coordinate scaling across multiple applications sharing resources
+4. **Dynamic SLA Adjustment**: Adapt SLA targets based on business priorities and system conditions
+
 
 ---
 
@@ -316,3 +320,5 @@ The benchmark results clearly demonstrate that SLA-aware autoscaling isn't just 
 - [Test Results](sequential_load_test_sweep_results_1763763808.json:1)
 - [RemainingSlack Policy Implementation](python/ray/serve/tests/sequential_performance_load_test_demo.py:34)
 - [Configuration Example](python/ray/serve/tests/sequential_performance_load_test_config.yaml:1)
+- [REP](https://github.com/ray-project/enhancements/pull/56#issuecomment-2493932035)
+- [Cloudwatch API integration](https://github.com/ray-project/ray/issues/41135#issue-1993639174)

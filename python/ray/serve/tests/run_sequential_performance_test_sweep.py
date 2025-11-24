@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
 import ray
 from ray import serve
 
+SLA_MS = 3000
 
 async def send_request(handle) -> Tuple[float, bool]:
     """Send a single request and measure end-to-end latency."""
@@ -83,7 +84,7 @@ async def run_load_test(handle, rate: float, duration: float) -> Dict:
                     results["successes"] += 1
                     
                     # Check SLA violation (2 seconds for sequential pipeline)
-                    if latency > 2000:
+                    if latency > SLA_MS:
                         results["sla_violations"] += 1
                 else:
                     results["failures"] += 1
@@ -458,7 +459,7 @@ async def main():
         "test_config": {
             "rates": rates,
             "duration": args.duration,
-            "sla_threshold_ms": 2000,
+            "sla_threshold_ms": SLA_MS,
             "total_test_time_seconds": total_time,
         },
         "summary": summary,

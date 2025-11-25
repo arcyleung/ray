@@ -2,17 +2,17 @@
 
 ## Introduction
 
-In the world of machine learning serving, latency unpredictability is a constant challenge. This is especially true for Large Language Models (LLMs) and other complex AI models where processing times can vary dramatically based on input size, model complexity, and system load. When these models are chained together in sequential pipelines, the challenge multiplies - a slowdown in one stage can cascade through the entire pipeline, leading to Service Level Agreement (SLA) violations.
+In the world of machine learning serving, latency unpredictability is a constant challenge. This is especially true for Large Language Models (LLMs) and other complex Foundation Models (FMs) where processing times can vary dramatically based on input size, model complexity, and system load from resource contention. When these models are chained together in sequential pipelines, the challenge multiplies - a slowdown in one stage can cascade through the entire pipeline, leading to Service Level Agreement (SLA) violations.
 
 Traditional autoscaling approaches, which typically rely on queue length metrics, often fall short in these scenarios. They react to problems rather than anticipating them, leading to delayed scaling decisions and poor SLA compliance.
 
-A recent addition to [Ray Serve v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) custom autoscaling API. We will be showcasing this API to implement a SLA-aware autoscaling policy called "RemainingSlack", which improves performance for sequential deployments with unpredictable latency patterns.
+[Ray v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) introduces a new custom autoscaling API for serve applications. We will be showcasing this API to implement a SLA-aware autoscaling policy called "RemainingSlack", which improves performance for sequential deployments with unpredictable latency patterns.
 
-## The Challenge: Sequential ML Pipelines with Unpredictable Latency
+## The Challenge: serving LLM workflow pipelines with Unpredictable Latency
 
 ### Understanding the Problem
 
-The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. The goal was to serve all customers efficiently and adhere to the SLAs in this multi-tenant environment. 
+The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. Each model would be provisioned as an independent Ray Serve deployment. The goal was to serve all customers efficiently and adhere to the application SLAs in this multi-tenant environment. 
 
 ```bash
 # Example of a sequential FM workflow
@@ -62,9 +62,9 @@ autoscaling_config = {
 
 | Pros | Cons |
 |------|------|
-| Simple to implement and understand | Reactive, not proactive: Scales only after queues build up |
-| Works well for independent services without complex dependencies | Local optimization: Each deployment scales independently |
-| Resource-efficient for predictable workloads | No SLA awareness: Doesn't consider end-to-end latency requirements |
+| Simple to implement and debug | Reactive, not proactive: Scales only after queues build up |
+| Works out of the box | Local optimization: Each deployment scales independently |
+| Resource-efficient for deterministic workloads | No SLA awareness: Doesn't consider end-to-end latency requirements |
 | Default approach with proven reliability in many scenarios | Delayed response: Built-in delays cause slow reactions to load changes |
 
 In long running and unpredictable pipelines, the drawbacks become evident. By the time Model 2 (the bottleneck) detects a high queue length and scales up, Models 1 and 3 may have already processed requests that will now wait at Model 2, causing SLA violations.
@@ -137,9 +137,9 @@ else:
 
 ## Ray Serve's Custom Autoscaling API: The Enabler
 
-The magic behind this approach is Ray Serve's flexible custom autoscaling API, which allows developers to implement any scaling logic they desire.
+Ray Serve's flexible custom autoscaling APIallows d evelopers to implement any scaling logic they desire:
 
-### API Structure
+### Autoscaling Policy Definition
 
 The custom policy is defined as a function that takes a dictionary of autoscaling contexts across all deployments as input, and outputs the target scaling decisions keyed by DeploymentID (accompanied by Debug Information as the second item in the returned Tuple):
 
@@ -159,7 +159,7 @@ Each `AutoscalingContext` provides comprehensive metrics:
 
 ### Application-Level Configuration
 
-The policy is applied at the application level in the YAML configuration:
+The policy is applied declaratively in the Ray Serve application YAML definition:
 
 ```yaml
 applications:
@@ -190,11 +190,9 @@ The benchmark results show compelling improvements across all metrics:
 
 The most dramatic improvement occurs at 15 req/s, where the Slack policy reduces SLA violations by **61.74%** - from nearly 1 in 5 requests violating SLA to less than 1 in 10.
 
-#### Interactive SLA Violation Comparison
+#### SLA Violation Comparison
 
-<div style="width: 100%; height: 500px; margin-bottom: 20px;">
-<iframe src="sla_violation_comparison.html" width="100%" height="100%" frameborder="0"></iframe>
-</div>
+![SLA Violation Comparison](sla_violation_comparison.png)
 
 ### Latency Improvements: 6-20% Better Performance
 
@@ -202,27 +200,21 @@ The most dramatic improvement occurs at 15 req/s, where the Slack policy reduces
 - **P95 Latency**: More consistent performance with smaller spikes
 - **Best Case**: 20.38% improvement at 15 req/s (2268ms → 1806ms)
 
-#### Interactive Average Latency Comparison
+#### Average Latency Comparison
 
-<div style="width: 100%; height: 500px; margin-bottom: 20px;">
-<iframe src="avg_latency_comparison.html" width="100%" height="100%" frameborder="0"></iframe>
-</div>
+![Average Latency Comparison](avg_latency_comparison.png)
 
-#### Interactive P95 Latency Comparison
+#### P95 Latency Comparison
 
-<div style="width: 100%; height: 500px; margin-bottom: 20px;">
-<iframe src="p95_latency_comparison.html" width="100%" height="100%" frameborder="0"></iframe>
-</div>
+![P95 Latency Comparison](p95_latency_comparison.png)
 
 ### Consistency and Stability
 
 The Slack policy maintains more consistent performance across different load levels, with less variance in both latency and SLA compliance. This predictability is crucial for production systems.
 
-#### Interactive Autoscaling Behavior Comparison
+#### Autoscaling Behavior Comparison
 
-<div style="width: 100%; height: 500px; margin-bottom: 20px;">
-<iframe src="autoscaling_comparison.html" width="100%" height="100%" frameborder="0"></iframe>
-</div>
+![Autoscaling Behavior Comparison](autoscaling_comparison.png)
 
 ## Why It Works: The Technical Insights
 

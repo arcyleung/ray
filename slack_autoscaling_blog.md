@@ -2,9 +2,9 @@
 
 ## Introduction
 
-In the world of machine learning serving, latency unpredictability is a constant challenge. This is especially true for Large Language Models (LLMs) and other complex Foundation Models (FMs) where processing times can vary dramatically based on input size, model complexity, and system load from resource contention. When these models are chained together in sequential pipelines, the challenge multiplies - a slowdown in one stage can cascade through the entire pipeline, leading to Service Level Agreement (SLA) violations.
+In the world of online application serving, latency unpredictability is a constant challenge. This is especially true for Large Language Models (LLMs) and other complex Foundation Models (FMs) where processing times can vary dramatically based on input size, model complexity, and system load from resource contention. When these models are deployed together in sequential pipelines, the challenges become amplified - a slowdown in one stage can cascade through the entire pipeline, leading to Service Level Agreement (SLA) violations for customers.
 
-Traditional autoscaling approaches, which typically rely on queue length metrics, often fall short in these scenarios. They react to problems rather than anticipating them, leading to delayed scaling decisions and poor SLA compliance.
+Traditional autoscaling approaches, which typically rely on queue length metrics, often fall short in these scenarios. They react to performance degredation rather than anticipating them, leading to delayed scaling decisions and poor SLA compliance.
 
 [Ray v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) introduces a new custom autoscaling API for serve applications. We will be showcasing this API to implement a SLA-aware autoscaling policy called "RemainingSlack", which improves performance for sequential deployments with unpredictable latency patterns.
 
@@ -12,7 +12,7 @@ Traditional autoscaling approaches, which typically rely on queue length metrics
 
 ### Understanding the Problem
 
-The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. Each model would be provisioned as an independent Ray Serve deployment. The goal was to serve all customers efficiently and adhere to the application SLAs in this multi-tenant environment. 
+The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. Each model would be provisioned as an independent Ray Serve deployment. The goal was to serve all customers efficiently and adhere to the application SLAs in this multi-tenant environment.
 
 ```bash
 # Example of a sequential FM workflow
@@ -26,7 +26,7 @@ Each model/deployment in this sequential chain may have different latency charac
 
 With an end-to-end SLA of 3 seconds, this pipeline is already challenging. But when you add:
 - **High variability**: Processing times can spike 2-3x due to input complexity
-- **Load fluctuations**: Request rates can vary from 5 to 30+ requests/second 
+- **Load fluctuations**: Request rates can vary from 5 to 30+ requests/second
 - **Resource contention**: Multiple models being loaded concurrently, contesting for the same memory bandwidth
 
 Traditional autoscaling struggles because it only sees local conditions (queue length at each deployment) without understanding the global SLA constraints.
@@ -293,13 +293,13 @@ The `RemainingSlack` autoscaling policy represents a paradigm shift from reactiv
 - **More consistent performance across load levels**
 - **Better resource utilization through intelligent scaling**
 
-In addition to customer SLAs, organizations may have other commitments (such as resource utilization, time-of-day scaling). Ray Serve's new custom autoscaling policy and metrics aggregations API empowers developers with unparalleled flexibility, to extract the best in both delivering performance to customers and outgoing costs. 
+In addition to customer SLAs, organizations may have other commitments (such as resource utilization, time-of-day scaling). Ray Serve's new custom autoscaling policy and metrics aggregations API empowers developers with unparalleled flexibility, to extract the best in both delivering performance to customers and outgoing costs.
 
 ## Future Directions
 
 The RemainingSlack policy demonstrates the power of Ray Serve's custom autoscaling API. Future enhancements could include:
 
-1. **Integration with thirdparty APIs**: [External monitoring and metrics sources](https://github.com/ray-project/ray/issues/41135#issue-1993639174) can be used in custom autoscaling policies to drive scaling decisions 
+1. **Integration with thirdparty APIs**: [External monitoring and metrics sources](https://github.com/ray-project/ray/issues/41135#issue-1993639174) can be used in custom autoscaling policies to drive scaling decisions
 2. **Cost-Aware Scaling**: Factor in cloud costs alongside SLA requirements
 3. **Multi-Application Coordination**: Coordinate scaling across multiple applications sharing resources
 4. **Dynamic SLA Adjustment**: Adapt SLA targets based on business priorities and system conditions

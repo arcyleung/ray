@@ -15,25 +15,25 @@ Traditional autoscaling approaches, which typically rely on queue length metrics
 The requirement came from Customers of Huawei Cloud's inference service, who used Foundation Models (FMs) in complex workflows. These workflows are typically a sequence of model requests with conditionals, branching, and consist of an assortment of models. Each model would be provisioned as an independent Ray Serve deployment. The goal was to serve all customers efficiently and adhere to the application SLAs in this multi-tenant environment.
 
 ```bash
-# Example of a sequential FM workflow
+# Example of a sequential FM workflow, representede as a Directed Acyclic Graph
 Request → Model 1 → Model 2 → Model 3 → Response
 ```
 
 Each model/deployment in this sequential chain may have different latency characteristics, to illustrate as an example:
-- **Model 1**: Fast preprocessing (3s base, 40% variability)
-- **Model 2**: Heavy model inference (5s base, 50% variability) - the bottleneck
-- **Model 3**: Post-processing (4s base, 45% variability)
+- **Model 1**: Fast preprocessing (3s base, 10% variability) (ex. embedding, search, and RAG stages)
+- **Model 2**: Heavy model inference (5s base, 50% variability) (ex. generation, batch and/or stream inference, multi-modal generation)
+- **Model 3**: Post-processing (4s base, 45% variability) (ex. safety guardrails and mechanisms)
 
-With an end-to-end SLA of 3 seconds, this pipeline is already challenging. But when you add:
+With an end-to-end SLA of 12 seconds, this pipeline is already challenging. But when you add:
 - **High variability**: Processing times can spike 2-3x due to input complexity
-- **Load fluctuations**: Request rates can vary from 5 to 30+ requests/second
-- **Resource contention**: Multiple models being loaded concurrently, contesting for the same memory bandwidth
+- **Load fluctuations**: Request rate from customers can vary from 5 to 30+ requests/second, in particular when new models are released and many customers want to test them at once
+- **Resource contention**: Multiple models being loaded concurrently on the same inference node, contesting for the same memory and netowrk bandwidth
 
 Traditional autoscaling struggles because it only sees local conditions (queue length at each deployment) without understanding the global SLA constraints.
 
 ### The Benchmark Setup
 
-The performance comparison was conducted using the benchmark script [`run_sequential_performance_test_sweep.py`](python/ray/serve/tests/run_sequential_performance_test_sweep.py:1), which tests both policies across multiple request rates (5-30 req/s) with realistic workload simulation including:
+The performance comparison was conducted using the benchmark script [`run_sequential_performance_test_sweep.py`](python/ray/serve/tests/run_sequential_performance_test_sweep.py:1), which tests both policies across multiple request rates (5-30 req/s) under the following conditions:
 
 - **Variable processing times** with different patterns (normal, CPU-intensive, I/O-bound)
 - **Spike generation** to simulate real-world unpredictability

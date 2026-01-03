@@ -1,0 +1,260 @@
+{
+  "timestamp": 1767416473.6394258,
+  "test_config": {
+    "rates": [
+      5.0,
+      10.0,
+      15.0,
+      20.0
+    ],
+    "duration": 60.0,
+    "sla_threshold_ms": 15000,
+    "total_test_time_seconds": 2436.7595760822296
+  },
+  "summary": {
+    "test_duration_per_rate": 60.0,
+    "rates_tested": [
+      "5.0",
+      "10.0",
+      "15.0",
+      "20.0"
+    ],
+    "rate_comparisons": {
+      "5.0": {
+        "standard_sla_violation_rate": 0.6588628762541806,
+        "slack_sla_violation_rate": 0.6622073578595318,
+        "standard_avg_latency": 18506.88915060024,
+        "slack_avg_latency": 18992.945455787172,
+        "sla_improvement_percent": -0.5076142131979693,
+        "latency_improvement_percent": -2.6263533608033076,
+        "winner": "standard"
+      },
+      "10.0": {
+        "standard_sla_violation_rate": 0.7202680067001676,
+        "slack_sla_violation_rate": 0.6298157453936348,
+        "standard_avg_latency": 19024.957429699312,
+        "slack_avg_latency": 18206.179878020805,
+        "sla_improvement_percent": 12.558139534883727,
+        "latency_improvement_percent": 4.3037024114458085,
+        "winner": "slack"
+      },
+      "15.0": {
+        "standard_sla_violation_rate": 0.6575654152445961,
+        "slack_sla_violation_rate": 0.6095346197502838,
+        "standard_avg_latency": 18687.663635071218,
+        "slack_avg_latency": 18104.491842185464,
+        "sla_improvement_percent": 7.304337238667912,
+        "latency_improvement_percent": 3.1206244090958126,
+        "winner": "slack"
+      },
+      "20.0": {
+        "standard_sla_violation_rate": 0.684654300168634,
+        "slack_sla_violation_rate": 0.5720303285593934,
+        "standard_avg_latency": 19108.436346457493,
+        "slack_avg_latency": 17497.076143210135,
+        "sla_improvement_percent": 16.449757429625546,
+        "latency_improvement_percent": 8.432716178506604,
+        "winner": "slack"
+      }
+    },
+    "overall_best_policy": "slack",
+    "sla_violation_trends": {
+      "standard": [
+        {
+          "rate": 5.0,
+          "sla_violation_rate": 0.6588628762541806,
+          "sla_violations": 197
+        },
+        {
+          "rate": 10.0,
+          "sla_violation_rate": 0.7202680067001676,
+          "sla_violations": 430
+        },
+        {
+          "rate": 15.0,
+          "sla_violation_rate": 0.6575654152445961,
+          "sla_violations": 578
+        },
+        {
+          "rate": 20.0,
+          "sla_violation_rate": 0.684654300168634,
+          "sla_violations": 812
+        }
+      ],
+      "slack": [
+        {
+          "rate": 5.0,
+          "sla_violation_rate": 0.6622073578595318,
+          "sla_violations": 198
+        },
+        {
+          "rate": 10.0,
+          "sla_violation_rate": 0.6298157453936348,
+          "sla_violations": 376
+        },
+        {
+          "rate": 15.0,
+          "sla_violation_rate": 0.6095346197502838,
+          "sla_violations": 537
+        },
+        {
+          "rate": 20.0,
+          "sla_violation_rate": 0.5720303285593934,
+          "sla_violations": 679
+        }
+      ]
+    },
+    "latency_trends": {
+      "standard": [
+        {
+          "rate": 5.0,
+          "avg_latency_ms": 18506.88915060024,
+          "p95_latency_ms": 30199.06816482544
+        },
+        {
+          "rate": 10.0,
+          "avg_latency_ms": 19024.957429699312,
+          "p95_latency_ms": 32073.545694351193
+        },
+        {
+          "rate": 15.0,
+          "avg_latency_ms": 18687.663635071218,
+          "p95_latency_ms": 32178.376817703247
+        },
+        {
+          "rate": 20.0,
+          "avg_latency_ms": 19108.436346457493,
+          "p95_latency_ms": 33067.79820919037
+        }
+      ],
+      "slack": [
+        {
+          "rate": 5.0,
+          "avg_latency_ms": 18992.945455787172,
+          "p95_latency_ms": 33959.8070859909
+        },
+        {
+          "rate": 10.0,
+          "avg_latency_ms": 18206.179878020805,
+          "p95_latency_ms": 33274.74861145018
+        },
+        {
+          "rate": 15.0,
+          "avg_latency_ms": 18104.491842185464,
+          "p95_latency_ms": 32312.77346611023
+        },
+        {
+          "rate": 20.0,
+          "avg_latency_ms": 17497.076143210135,
+          "p95_latency_ms": 30842.678236961365
+        }
+      ]
+    }
+  },
+  "detailed_results": {
+    "5.0": {
+      "standard_sequential_app": {
+        "total_requests": 299,
+        "avg_latency_ms": 18506.88915060024,
+        "p50_latency_ms": 17534.95502471924,
+        "p95_latency_ms": 30199.06816482544,
+        "p99_latency_ms": 42490.868997574,
+        "sla_violation_rate": 0.6588628762541806,
+        "sla_violations": 197,
+        "successes": 297,
+        "failures": 2,
+        "success_rate": 0.9933110367892977
+      },
+      "slack_sequential_app": {
+        "total_requests": 299,
+        "avg_latency_ms": 18992.945455787172,
+        "p50_latency_ms": 17439.153909683228,
+        "p95_latency_ms": 33959.8070859909,
+        "p99_latency_ms": 42887.26117134084,
+        "sla_violation_rate": 0.6622073578595318,
+        "sla_violations": 198,
+        "successes": 299,
+        "failures": 0,
+        "success_rate": 1.0
+      }
+    },
+    "10.0": {
+      "standard_sequential_app": {
+        "total_requests": 597,
+        "avg_latency_ms": 19024.957429699312,
+        "p50_latency_ms": 17698.8582611084,
+        "p95_latency_ms": 32073.545694351193,
+        "p99_latency_ms": 42968.17955970767,
+        "sla_violation_rate": 0.7202680067001676,
+        "sla_violations": 430,
+        "successes": 593,
+        "failures": 4,
+        "success_rate": 0.9932998324958124
+      },
+      "slack_sequential_app": {
+        "total_requests": 597,
+        "avg_latency_ms": 18206.179878020805,
+        "p50_latency_ms": 16811.83958053589,
+        "p95_latency_ms": 33274.74861145018,
+        "p99_latency_ms": 40670.87776184077,
+        "sla_violation_rate": 0.6298157453936348,
+        "sla_violations": 376,
+        "successes": 597,
+        "failures": 0,
+        "success_rate": 1.0
+      }
+    },
+    "15.0": {
+      "standard_sequential_app": {
+        "total_requests": 879,
+        "avg_latency_ms": 18687.663635071218,
+        "p50_latency_ms": 17604.49242591858,
+        "p95_latency_ms": 32178.376817703247,
+        "p99_latency_ms": 39365.04422187806,
+        "sla_violation_rate": 0.6575654152445961,
+        "sla_violations": 578,
+        "successes": 877,
+        "failures": 2,
+        "success_rate": 0.9977246871444824
+      },
+      "slack_sequential_app": {
+        "total_requests": 881,
+        "avg_latency_ms": 18104.491842185464,
+        "p50_latency_ms": 16405.379056930542,
+        "p95_latency_ms": 32312.77346611023,
+        "p99_latency_ms": 41080.04188537599,
+        "sla_violation_rate": 0.6095346197502838,
+        "sla_violations": 537,
+        "successes": 881,
+        "failures": 0,
+        "success_rate": 1.0
+      }
+    },
+    "20.0": {
+      "standard_sequential_app": {
+        "total_requests": 1186,
+        "avg_latency_ms": 19108.436346457493,
+        "p50_latency_ms": 17916.226863861084,
+        "p95_latency_ms": 33067.79820919037,
+        "p99_latency_ms": 44534.07055616379,
+        "sla_violation_rate": 0.684654300168634,
+        "sla_violations": 812,
+        "successes": 1182,
+        "failures": 4,
+        "success_rate": 0.9966273187183811
+      },
+      "slack_sequential_app": {
+        "total_requests": 1187,
+        "avg_latency_ms": 17497.076143210135,
+        "p50_latency_ms": 16098.795890808105,
+        "p95_latency_ms": 30842.678236961365,
+        "p99_latency_ms": 41723.728885650635,
+        "sla_violation_rate": 0.5720303285593934,
+        "sla_violations": 679,
+        "successes": 1187,
+        "failures": 0,
+        "success_rate": 1.0
+      }
+    }
+  }
+}

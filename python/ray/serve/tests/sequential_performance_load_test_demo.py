@@ -29,7 +29,7 @@ from ray import serve
 from ray.serve._private.common import DeploymentID
 from ray.serve.config import AutoscalingContext, AutoscalingPolicy
 
-SLA_MS = 3000
+SLA_MS = 15000  # 15 seconds end-to-end SLA
 
 def app_level_sequential_remaining_slack_autoscaling_policy(
     ctxs: Dict[DeploymentID, AutoscalingContext]
@@ -83,7 +83,7 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
 
         # Calculate the time allocated to this deployment in the sequential chain
         application_sla_ms = SLA_MS
-        buffer_ms = 1000.0  # 1 second buffer
+        buffer_ms = 3000.0  # 3 second buffer
         time_allocation = (application_sla_ms * weight) - buffer_ms
 
         # Calculate the remaining slack time
@@ -158,8 +158,8 @@ class WorkloadSimulator:
 
     def __init__(
         self,
-        base_processing_time_ms: float = 80.0,
-        variance_ms: float = 60.0,
+        base_processing_time_ms: float = 800.0,
+        variance_ms: float = 600.0,
         spike_probability: float = 0.1,
         spike_multiplier: float = 3.0,
     ):
@@ -442,8 +442,8 @@ class StandardModel1Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=300,  # 3 seconds base time
-            variance_ms=200,  # 2 seconds variance
+            base_processing_time_ms=3000,  # 3 seconds base time
+            variance_ms=2000,  # 2 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -480,8 +480,8 @@ class StandardModel2Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=500,  # 5 seconds base time
-            variance_ms=300,  # 3 seconds variance
+            base_processing_time_ms=5000,  # 5 seconds base time
+            variance_ms=3000,  # 3 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -518,8 +518,8 @@ class StandardModel3Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=400,  # 4 seconds base time
-            variance_ms=250,  # 2.5 seconds variance
+            base_processing_time_ms=4000,  # 4 seconds base time
+            variance_ms=2500,  # 2.5 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -594,8 +594,8 @@ class SlackModel1Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=300,  # 3 seconds base time
-            variance_ms=200,  # 2 seconds variance
+            base_processing_time_ms=3000,  # 3 seconds base time
+            variance_ms=2000,  # 2 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -632,8 +632,8 @@ class SlackModel2Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=500,  # 5 seconds base time
-            variance_ms=300,  # 3 seconds variance
+            base_processing_time_ms=5000,  # 5 seconds base time
+            variance_ms=3000,  # 3 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )
@@ -670,8 +670,8 @@ class SlackModel3Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=400,  # 4 seconds base time
-            variance_ms=250,  # 2.5 seconds variance
+            base_processing_time_ms=4000,  # 4 seconds base time
+            variance_ms=2500,  # 2.5 seconds variance
             spike_probability=0.15,  # 15% chance of spikes
             spike_multiplier=2.5,  # 2.5x spike multiplier
         )

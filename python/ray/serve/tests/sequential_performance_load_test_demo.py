@@ -29,7 +29,7 @@ from ray import serve
 from ray.serve._private.common import DeploymentID
 from ray.serve.config import AutoscalingContext, AutoscalingPolicy
 
-SLA_MS = 15000  # 15 seconds end-to-end SLA
+SLA_MS = 2000  # 20 seconds end-to-end SLA
 
 def app_level_sequential_remaining_slack_autoscaling_policy(
     ctxs: Dict[DeploymentID, AutoscalingContext]
@@ -49,9 +49,6 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
     """
     decisions: Dict[DeploymentID, int] = {}
     debug_info = {}
-
-    # Calculate the time allocated to each deployment in the sequential chain
-    total_base_time = 3000 + 5000 + 4000  # Model1 + Model2 + Model3 base times in ms
 
     # Process each deployment
     for deployment_id, ctx in ctxs.items():
@@ -83,7 +80,7 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
 
         # Calculate the time allocated to this deployment in the sequential chain
         application_sla_ms = SLA_MS
-        buffer_ms = 3000.0  # 3 second buffer
+        buffer_ms = 300.0  # 3 second buffer
         time_allocation = (application_sla_ms * weight) - buffer_ms
 
         # Calculate the remaining slack time
@@ -442,10 +439,10 @@ class StandardModel1Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=3000,  # 3 seconds base time
-            variance_ms=2000,  # 2 seconds variance
+            base_processing_time_ms=300,  # 3 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -480,10 +477,10 @@ class StandardModel2Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=5000,  # 5 seconds base time
-            variance_ms=3000,  # 3 seconds variance
+            base_processing_time_ms=500,  # 5 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -518,10 +515,10 @@ class StandardModel3Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=4000,  # 4 seconds base time
-            variance_ms=2500,  # 2.5 seconds variance
+            base_processing_time_ms=400,  # 4 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -594,10 +591,10 @@ class SlackModel1Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=3000,  # 3 seconds base time
-            variance_ms=2000,  # 2 seconds variance
+            base_processing_time_ms=300,  # 3 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -632,10 +629,10 @@ class SlackModel2Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=5000,  # 5 seconds base time
-            variance_ms=3000,  # 3 seconds variance
+            base_processing_time_ms=500,  # 5 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -670,10 +667,10 @@ class SlackModel3Deployment:
 
     def __init__(self):
         self.workload = WorkloadSimulator(
-            base_processing_time_ms=4000,  # 4 seconds base time
-            variance_ms=2500,  # 2.5 seconds variance
+            base_processing_time_ms=400,  # 4 seconds base time
+            variance_ms=100,  # 1 second variance
             spike_probability=0.15,  # 15% chance of spikes
-            spike_multiplier=2.5,  # 2.5x spike multiplier
+            spike_multiplier=1.5,  # 2.5x spike multiplier
         )
 
     async def __call__(self, request_data: Dict) -> Dict:
@@ -1051,7 +1048,7 @@ async def run_sequential_performance_test(
                 request_id += 1
                 request_count += 1
                 request_data = {"request_id": request_id}
-                
+
                 # Record when we start sending this request
                 request_start_time = time.time()
                 request_start_times.append(request_start_time)
@@ -1059,12 +1056,12 @@ async def run_sequential_performance_test(
                 # Send request asynchronously without waiting
                 request_future = handle.remote(request_data)
                 pending_requests.append((request_start_time, request_data, request_future))
-                
+
                 # Get the target interval from generator and wait
                 target_interval = generator.get_next_interval()
                 if target_interval > 0:
                     await asyncio.sleep(target_interval)
-            
+
             # Wait for all pending requests to complete and record metrics
             print(f"DEBUG [{deployment_name}]: Waiting for {len(pending_requests)} pending requests to complete...")
             for request_start_time, request_data, request_future in pending_requests:
@@ -1092,10 +1089,10 @@ async def run_sequential_performance_test(
                     metrics.record_latency(f"{deployment_name}_model1", 10000.0)
                     metrics.record_latency(f"{deployment_name}_model2", 10000.0)
                     metrics.record_latency(f"{deployment_name}_model3", 10000.0)
-        
+
         except Exception as e:
             print(f"Error in generate_requests for {deployment_name}: {e}")
-        
+
         # Calculate actual achieved rate for this deployment
         if len(request_start_times) > 1:
             total_time = request_start_times[-1] - request_start_times[0]

@@ -11,7 +11,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: standard_model2
@@ -22,7 +22,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: standard_model3
@@ -33,7 +33,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: standard_chain
@@ -44,7 +44,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
 
@@ -62,7 +62,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: slack_model2
@@ -73,7 +73,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: slack_model3
@@ -84,7 +84,7 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01
       - name: slack_chain
@@ -95,6 +95,6 @@ applications:
           downscale_delay_s: 4
           metrics_interval_s: 0.5
           look_back_period_s: 2
-          target_ongoing_requests: 5
+          target_ongoing_requests: 2
         ray_actor_options:
           num_cpus: 0.01

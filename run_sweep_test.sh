@@ -14,7 +14,6 @@ for i in {1..3}; do
         --rate-step 5 \
         --duration 60
 
-    # Move the result file to our results directory with iteration number
     latest_file=$(ls -t sequential_load_test_sweep_results_*.json | head -n1)
     if [ -n "$latest_file" ]; then
         mv "$latest_file" "sweep_results/iteration_${i}_$(basename $latest_file)"
@@ -25,6 +24,6 @@ for i in {1..3}; do
     echo ""
 done
 
-echo "All 3 iterations completed!"
+echo "All 5 iterations completed!"
 echo "Results saved in sweep_results/ directory"
 echo "Run plot_autoscaling_comparison.py to generate boxplots with quartiles"

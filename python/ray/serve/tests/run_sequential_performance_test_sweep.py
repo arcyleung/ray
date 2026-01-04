@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
 import ray
 from ray import serve
 
-SLA_MS = 15000
+SLA_MS = 2000
 
 async def send_request(handle) -> Tuple[float, bool]:
     """Send a single request and measure end-to-end latency."""

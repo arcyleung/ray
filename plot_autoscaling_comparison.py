@@ -40,25 +40,25 @@ for data in all_data:
     summary = data['summary']
     latency_trends = summary['latency_trends']
     sla_violation_trends = summary['sla_violation_trends']
-    
+
     # Create dictionaries for quick lookups by rate
     std_latency_by_rate = {item['rate']: item for item in latency_trends['standard']}
     slack_latency_by_rate = {item['rate']: item for item in latency_trends['slack']}
     std_sla_by_rate = {item['rate']: item for item in sla_violation_trends['standard']}
     slack_sla_by_rate = {item['rate']: item for item in sla_violation_trends['slack']}
-    
+
     # Extract data for each rate
     for rate in rates:
         std_latency = std_latency_by_rate.get(rate)
         slack_latency = slack_latency_by_rate.get(rate)
         std_sla = std_sla_by_rate.get(rate)
         slack_sla = slack_sla_by_rate.get(rate)
-        
+
         if std_latency and std_sla:
             standard_avg_latency[rate].append(std_latency['avg_latency_ms'])
             standard_p95_latency[rate].append(std_latency['p95_latency_ms'])
             standard_sla_violation[rate].append(std_sla['sla_violation_rate'])
-            
+
         if slack_latency and slack_sla:
             slack_avg_latency[rate].append(slack_latency['avg_latency_ms'])
             slack_p95_latency[rate].append(slack_latency['p95_latency_ms'])
@@ -84,7 +84,7 @@ for rate in sorted(rates):
     # Standard data
     avg_latency_x_standard.extend([str(rate)] * len(standard_avg_latency[rate]))
     avg_latency_y_standard.extend(standard_avg_latency[rate])
-    
+
     # Slack data
     avg_latency_x_slack.extend([str(rate)] * len(slack_avg_latency[rate]))
     avg_latency_y_slack.extend(slack_avg_latency[rate])
@@ -127,7 +127,7 @@ for rate in sorted(rates):
     # Standard data
     p95_latency_x_standard.extend([str(rate)] * len(standard_p95_latency[rate]))
     p95_latency_y_standard.extend(standard_p95_latency[rate])
-    
+
     # Slack data
     p95_latency_x_slack.extend([str(rate)] * len(slack_p95_latency[rate]))
     p95_latency_y_slack.extend(slack_p95_latency[rate])
@@ -170,7 +170,7 @@ for rate in sorted(rates):
     # Standard data
     sla_x_standard.extend([str(rate)] * len(standard_sla_violation[rate]))
     sla_y_standard.extend(standard_sla_violation[rate])
-    
+
     # Slack data
     sla_x_slack.extend([str(rate)] * len(slack_sla_violation[rate]))
     sla_y_slack.extend(slack_sla_violation[rate])
@@ -224,13 +224,13 @@ for rate in improvement_rates:
     if improvements:
         sla_values = [imp['sla_improvement'] for imp in improvements if imp['sla_improvement'] is not None]
         latency_values = [imp['latency_improvement'] for imp in improvements if imp['latency_improvement'] is not None]
-        
+
         avg_sla = np.mean(sla_values) if sla_values else 0
         avg_latency = np.mean(latency_values) if latency_values else 0
     else:
         avg_sla = 0
         avg_latency = 0
-    
+
     avg_sla_improvements.append(avg_sla)
     avg_latency_improvements.append(avg_latency)
 
@@ -316,7 +316,7 @@ fig1.add_trace(
 )
 
 fig1.update_layout(
-    title='Average Latency Comparison - Boxplot Analysis',
+    title='Average Latency Comparison',
     xaxis_title='Request Rate (req/s)',
     yaxis_title='Average Latency (ms)',
     height=600,
@@ -360,7 +360,7 @@ fig2.add_trace(
 )
 
 fig2.update_layout(
-    title='P95 Latency Comparison - Boxplot Analysis',
+    title='P95 Latency Comparison',
     xaxis_title='Request Rate (req/s)',
     yaxis_title='P95 Latency (ms)',
     height=600,
@@ -404,7 +404,7 @@ fig3.add_trace(
 )
 
 fig3.update_layout(
-    title='SLA Violation Rate Comparison - Boxplot Analysis',
+    title='SLA Violation Rate Comparison',
     xaxis_title='Request Rate (req/s)',
     yaxis_title='SLA Violation Rate',
     height=600,
@@ -441,12 +441,12 @@ for rate in sorted(rates, key=float):
         print(f"  Avg Latency: {np.mean(std_avg):.2f} ± {np.std(std_avg):.2f} ms")
     else:
         print(f"  Avg Latency: No data")
-        
+
     if std_p95:
         print(f"  P95 Latency: {np.mean(std_p95):.2f} ± {np.std(std_p95):.2f} ms")
     else:
         print(f"  P95 Latency: No data")
-        
+
     if std_sla:
         print(f"  SLA Violation: {np.mean(std_sla)*100:.2f} ± {np.std(std_sla)*100:.2f}%")
     else:
@@ -462,12 +462,12 @@ for rate in sorted(rates, key=float):
         print(f"  Avg Latency: {np.mean(slack_avg):.2f} ± {np.std(slack_avg):.2f} ms")
     else:
         print(f"  Avg Latency: No data")
-        
+
     if slack_p95:
         print(f"  P95 Latency: {np.mean(slack_p95):.2f} ± {np.std(slack_p95):.2f} ms")
     else:
         print(f"  P95 Latency: No data")
-        
+
     if slack_sla:
         print(f"  SLA Violation: {np.mean(slack_sla)*100:.2f} ± {np.std(slack_sla)*100:.2f}%")
     else:

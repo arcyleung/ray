@@ -1,35 +1,28 @@
-# SLA-Aware Autoscaling for ML Pipelines with Ray's Custom Autoscaling API
+# SLA-Aware Autoscaling for ML Pipelines with Ray Serve's Custom Autoscaling API
 
 ## Introduction
 
-Serving Deep Learning (DL) and Foundation Models (FMs) faces unpredictable latency due to varying input sizes, model complexity, and resource contention. In sequential pipelines, slowdowns cascade through stages, causing SLA violations. Traditional queue-based autoscaling reacts to problems rather than preventing them.
+Serving Deep Learning (DL) and Foundation Models (FMs) faces unpredictable latency due to varying input sizes, model complexity, and resource contention. In sequential pipelines, slowdowns cascade across stages of deployments, causing SLA violations. Traditional queue-based autoscaling reacts to these delays rather than proactively preventing them in the application.
 
-[Ray v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) introduces a new custom autoscaling API that enables SLA-aware autoscaling policies like "RemainingSlack", which improves performance for sequential deployments with unpredictable latency patterns.
+[Ray v2.51.0](https://github.com/ray-project/ray/releases/tag/ray-2.51.0) introduces a new custom autoscaling API. In this blog, we demonstrate how to use this API to implement an SLA-aware autoscaling policy called "RemainingSlack", which improves performance for applications using sequential deployments with unpredictable latency patterns.
 
 ## The Challenge: Serving Workflows with Unpredictable Latency
 
 ### Understanding the Problem
 
-Customers of Huawei Cloud's Inference service use DNNs and Foundation Models (FMs) in complex workflows. These workflows comprise of sequences of model requests with conditionals, branching, for various tasks (OCR, Object Detection, Semantic Segmentation). Each model is provisioned as an independent Ray Serve deployment, with the goal of serving all customers efficiently while adhering to application SLAs in this multi-tenant environment.
+Customers of Huawei Cloud's Inference services serve DNNs and Foundation Models (FMs) for use in complex workflows. These workflows comprise sequences of model requests with conditionals and branching for various tasks (OCR, Object Detection, Semantic Segmentation). Each model is provisioned as an independent Ray Serve deployment, with the goal of serving all customers efficiently while adhering to application SLAs in this multi-tenant environment.
 
+Real workloads may involve heterogeneous processors and higher performance variability: LLMs, Vision Language Models, or storage operations like vector database queries in RAG systems.
+For a simple example, consider a sequential chain of deployments, each with different latency characteristics:
 ```bash
 # Example of a simple sequential Image Processing workflow
 Request → Model 1 (OCR) → Model 2 (DNN Object Detection) → Model 3 (Post-processing) → Response
 ```
-
-Real workloads may involve heterogeneous processors: LLMs, Vision Language Models, or storage operations like vector database queries in RAG systems.
-For a simple example, consider a sequential chain of deployments, each with different latency characteristics:
 - **Model 1**: Fast preprocessing (300ms base latency)
 - **Model 2**: Heavy model inference (500ms base latency)
 - **Model 3**: Post-processing/ data storage (400ms base latency)
 
-Suppose the customer desires an end-to-end latency SLA of 2 seconds for each request. SLA compliance challenges include processing time spikes (2-3x), fluctuating request rates (5-30+ req/s), and memory bandwidth contention from model loading. Traditional autoscaling struggles as it only sees local queue conditions without understanding global SLA constraints.
-
-### The Benchmark Setup
-
-The performance comparison used [`run_sequential_performance_test_sweep.py`](./python/ray/serve/tests/run_sequential_performance_test_sweep.py) to test both policies across request rates (5-20 req/s) with realistic workload simulation, with a 25-30% processing time variation in each stage, spike generation, and sequential pipeline orchestration.
-
-Results captured in [`sequential_load_test_sweep_results_1763763808.json`](sequential_load_test_sweep_results_1763763808.json:1) show key metrics: `avg_latency_ms`, `p95_latency_ms`, and `sla_violation_rate`.
+Suppose the customer desires an end-to-end latency SLA of 2 seconds for each request. Maintaining compliance to this SLA means managing processing time spikes (2-3x), fluctuating request rates (5-30+ req/s), and memory bandwidth contention from model loading. Traditional autoscaling struggles as it only sees local queue conditions without understanding downstream effects of delays.
 
 ## Traditional Autoscaling: The Queue Length Approach
 
@@ -62,13 +55,13 @@ By the time Model 2 (the bottleneck) detects a high queue length and scales up, 
 
 ### Core Concept
 
-The RemainingSlack policy, implemented in [`app_level_sequential_remaining_slack_autoscaling_policy()`](python/ray/serve/tests/sequential_performance_load_test_demo.py:34), takes a fundamentally different approach. Instead of reacting to queue lengths, it proactively manages resources based on **remaining time budget** (i.e., "slack") at each deployment, relative to application-level SLA requirements.
+The RemainingSlack policy, implemented in [`app_level_sequential_remaining_slack_autoscaling_policy()`](python/ray/serve/tests/sequential_performance_load_test_demo.py:34), takes a different approach. Instead of reacting to queue lengths, it proactively manages resources based on **remaining time budget** (i.e., "slack") at each deployment in the application chain. This enables autoscaling with awareness of application-level SLA requirements.
 
 ### How It Works
 
 #### 1. Time Budget Allocation
 
-At a high level, the autoscaling policy allocates time budgets to each deployment based on their characteristics, ensuring that sequential execution time meets end-to-end SLA constraints:
+At a high level, the autoscaling policy allocates time budgets to each deployment based on their characteristics, ensuring that total execution time meets end-to-end SLA constraints:
 
 ```python
 # Weight-based allocation based on processing complexity
@@ -81,21 +74,21 @@ time_allocation = (total_sla_ms * weight)
 
 #### 2. Slack Calculation
 
-Each deployment computes "remaining slack" as the difference between allocated time and expected processing time, with a variability factor to model average latency:
+Each deployment computes "remaining slack" as the difference between allocated time and expected processing time, accounting for variability in observed latency:
 
 ```python
 processing_time_with_variability = base_processing_time * (1 + variability)
 remaining_slack = time_allocation - processing_time_with_variability
 ```
 
-The scaling logic follows two key principles: negative slack triggers aggressive scale-up, while positive slack enables load-based conservative scaling.
+The scaling logic follows two key principles: negative slack triggers aggressive scale-up to compensate for slow requests and allow them to catch up, while positive slack enables load-based conservative scaling and downscaling when deployments are idle or underutilized.
 
 ## Ray Serve's Custom Autoscaling API: The Enabler
 
 Ray Serve's [flexible custom autoscaling API](https://docs.ray.io/en/latest/serve/advanced-guides/advanced-autoscaling.html#custom-metrics) allows developers to implement any scaling logic, with i) a custom record_autoscaling_stats method and ii) a custom policy.
 
-### i) record_autoscaling_stats Function
-This method is invoked periodically in the deployment to report customized autoscaling signals to the serve controller. In this example application made of sequential model deployments, we have record_autoscaling_stats reporting each deployment's processing latency for use in the slack calculation in the controller's custom autoscaling policy:
+### i) `record_autoscaling_stats()` method
+This method is invoked periodically within each deployment to report custom autoscaling metrics to the Ray Serve controller. In this sequential pipeline example, `record_autoscaling_stats()` reports each deployment's processing latency, which the controller uses for slack calculation in the custom autoscaling policy:
 
 ```python
 @serve.deployment
@@ -134,7 +127,8 @@ class MyModel:
 ```
 
 ### ii) Autoscaling Policy Definition
-The custom policy is defined as a function that takes autoscaling contexts across all deployments and outputs scaling decisions. In this example, the policy computes `remaining_slack` and whether to increment/decrement the number of current_replicas for each deployment. The next state of the autoscaler is updated by assigning and returning `decisions[deployment_id] = desired_replicas` from this policy method.
+The custom policy is defined as a function that takes autoscaling contexts across all deployments and outputs scaling decisions.
+Each `AutoscalingContext` provides metrics including replica counts, queue lengths, custom metrics, and historical performance data. In our slack policy, we read `latency_ms` from each deployment's `aggregated_metrics` and compute the mean latency. The policy then computes `remaining_slack` and determines whether to increment or decrement the number of replicas for each deployment. Finally, the autoscaler state is updated by assigning `decisions[deployment_id] = desired_replicas` and returning the `decisions` dictionary for all deployments in the application.
 
 ```python
 def app_level_sequential_remaining_slack_autoscaling_policy(
@@ -149,7 +143,7 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
     # Allow some buffer time due to variability
     remaining_slack = deployment_allotted_time - avg_latency
 
-    # If we have negative slack, we need to scale up aggressively
+    # If we have negative slack, we need to scale up aggressively to catch up and meet app-level SLA
     if remaining_slack < 0:
         # Scale up to reduce processing time
         desired_replicas = min(max_replicas, current_replicas) + 1
@@ -162,17 +156,15 @@ def app_level_sequential_remaining_slack_autoscaling_policy(
             # Maintain current replicas
             desired_replicas = current_replicas
 
-    # Store the decision
+    # Store the decision, return new autoscaling states
     decisions[deployment_id] = desired_replicas
 
   return decisions, debug_info
   ```
 
-Each `AutoscalingContext` provides metrics including replica counts, queue lengths, custom metrics, and historical performance data.
-
 ### Application-Level Configuration
 
-The policy is applied declaratively in the Ray Serve application YAML, at deployment time.
+Custom policies are applied declaratively in the Ray Serve application YAML at deployment time. The next iteration of this feature will enable programmatic switching of custom policies on-the-fly.
 
 <details>
 
@@ -199,7 +191,14 @@ applications:
 
 </details>
 
-#### Autoscaling Policies Comparison
+
+### The Benchmark Setup
+
+The performance comparison used [`run_sequential_performance_test_sweep.py`](./python/ray/serve/tests/run_sequential_performance_test_sweep.py) to test both policies across request loads (sweeping from 5 to 20 req/s). The benchmark simulates a sequential pipeline of three model deployments with 25-30% processing time variation in each stage and periodic spike generation.
+
+Results captured in [`sequential_load_test_sweep_results_1763763808.json`](sequential_load_test_sweep_results_1763763808.json:1) show key metrics: `avg_latency_ms`, `p95_latency_ms`, and `sla_violation_rate`.
+
+#### Autoscaling Policies Performance Comparison
 
 | Request Rate | Metric | Standard Autoscaling | Slack Autoscaling | Improvement (Mean) |
 |--------------|--------|---------------------|-------------------|------------------------------|
@@ -216,6 +215,7 @@ applications:
 | | P95 Latency (ms) | 2720.10 ± 220.01 | 2073.32 ± 22.00 | 23.78% |
 | | SLA Violation (%) | 13.28 ± 1.12 | 7.16 ± 0.91 | 46.08% |
 
+*Note: The slight negative improvement (-0.03%) in average latency at 5.0 req/s is due to benchmark jitter. At low loads, neither autoscaling policy creates additional replicas since a single replica per deployment can handle the request rate within SLA, resulting in nearly identical performance.*
 
 ![SLA Violation Comparison](sla_violation_comparison.png)
 
@@ -229,9 +229,9 @@ With the SLA-aware policy, we observe a consistently low SLA violation rate belo
 
 At low request loads (5 req/s), the queue length based scaling behaves similarly to the SLA-aware custom autoscaling policy. This is because a single replica of each deployment is able to serve all the incoming requests within the latency deadline.
 
-As load increases beyond 10 req/s, the default policy's reactive nature causes significant delays in scaling, while the SLA-aware policy's proactive approach prevents long queues from forming. Even as spikes in deployment processing time are introduced, the application's end-to-end latency remains stable using this custom autoscaling policy.
+As load increases beyond 10 req/s, the default policy's reactive nature causes significant delays in scaling as requests queue up, while the SLA-aware policy's proactive approach prevents long queues from forming. Even when spikes in deployment processing time occur, the application's end-to-end latency remains stable using this custom autoscaling policy.
 
-These improvements directly improve customer experience through consistent service delivery and resource efficiency through better scaling decisions. The Slack policy makes coordinated decisions across the entire pipeline and maintains more consistent performance across different load levels, with less variance in both latency and SLA compliance.
+These improvements directly improve customer experience through consistent service delivery and resource efficiency through better scaling decisions. The Slack policy makes coordinated decisions across the entire pipeline and maintains stable performance across different load levels, as evidenced by less variance in both p95 latency and SLA compliance. This simple example demonstrates how to use the API; performance can be tuned further to tighter tolerances for even more stringent SLAs.
 
 ## Real-World Applications
 
@@ -239,42 +239,6 @@ Custom autoscaling policies apply to:
 - **LLM serving chains**: Tokenization → embedding → generation → post-processing with unpredictable outputs
 - **Multi-modal pipelines**: Preprocessing → feature extraction → classification with resources tailored to each stage's complexity
 - **Data workflows**: ETL pipelines with variable processing times where proactive scaling prevents bottlenecks
-
-## Implementation Guide
-
-### Step 1: Define Your Custom Policy
-
-```python
-def your_custom_policy(ctxs: Dict[DeploymentID, AutoscalingContext]) -> Tuple[Dict[DeploymentID, int], Dict]:
-    decisions = {}
-    debug_info = {}
-
-    for deployment_id, ctx in ctxs.items():
-        # Your custom logic here
-        decisions[deployment_id] = desired_replicas
-        debug_info[deployment_id] = {...}
-
-    return decisions, debug_info
-```
-
-### Step 2: Configure in YAML
-
-```yaml
-applications:
-  - name: your_app
-    autoscaling_policy:
-      policy_function: your_module:your_custom_policy
-    deployments:
-      # Your deployments
-```
-
-### Step 3: Deploy and Monitor
-
-```bash
-serve deploy your_config.yaml
-```
-
-Monitor the debug information returned by your policy to fine-tune the scaling logic.
 
 ## Conclusion
 

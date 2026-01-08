@@ -107,7 +107,7 @@ fig.add_trace(
     go.Box(
         x=avg_latency_x_slack,
         y=avg_latency_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
@@ -150,7 +150,7 @@ fig.add_trace(
     go.Box(
         x=p95_latency_x_slack,
         y=p95_latency_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
@@ -183,8 +183,7 @@ fig.add_trace(
         marker_color='blue',
         boxpoints='outliers',
         jitter=0.3,
-        pointpos=-1.8,
-        showlegend=False
+        pointpos=-1.8
     ),
     row=2, col=1
 )
@@ -193,12 +192,11 @@ fig.add_trace(
     go.Box(
         x=sla_x_slack,
         y=sla_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
-        pointpos=-1.8,
-        showlegend=False
+        pointpos=-1.8
     ),
     row=2, col=1
 )
@@ -258,7 +256,7 @@ fig.add_trace(
 
 # Update layout
 fig.update_layout(
-    title='Autoscaling Policy Comparison: Standard (Queue Length) vs Slack (SLA-aware)',
+    title='Autoscaling Policy Comparison: Standard (Queue Length) vs RemainingSlack (SLA-aware)',
     height=800,
     showlegend=True,
     legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
@@ -307,7 +305,7 @@ fig1.add_trace(
     go.Box(
         x=avg_latency_x_slack,
         y=avg_latency_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
@@ -350,12 +348,11 @@ fig2.add_trace(
     go.Box(
         x=p95_latency_x_slack,
         y=p95_latency_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
-        pointpos=-1.8,
-        showlegend=False
+        pointpos=-1.8
     )
 )
 
@@ -394,12 +391,11 @@ fig3.add_trace(
     go.Box(
         x=sla_x_slack,
         y=sla_y_slack,
-        name='Slack (SLA-aware)',
+        name='RemainingSlack (SLA-aware)',
         marker_color='red',
         boxpoints='outliers',
         jitter=0.3,
-        pointpos=-1.8,
-        showlegend=False
+        pointpos=-1.8
     )
 )
 

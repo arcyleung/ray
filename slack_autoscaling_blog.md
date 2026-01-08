@@ -22,7 +22,7 @@ Request → Model 1 (OCR) → Model 2 (DNN Object Detection) → Model 3 (Post-p
 - **Model 2**: Heavy model inference (500ms base latency)
 - **Model 3**: Post-processing/ data storage (400ms base latency)
 
-Suppose the customer desires an end-to-end latency SLA of 2 seconds for each request. Maintaining compliance to this SLA means managing processing time spikes (2-3x), fluctuating request rates (5-30+ req/s), and memory bandwidth contention from model loading. Traditional autoscaling struggles as it only sees local queue conditions without understanding downstream effects of delays.
+Suppose the customer desires an end-to-end latency SLA of 2 seconds for each request; if the application exceeds 2 seconds in generating a response it would count as an _SLA violation_. Maintaining compliance to this SLA means managing processing time spikes (2-3x), fluctuating request rates (5-30+ req/s), and memory bandwidth contention from model loading. Traditional autoscaling struggles as it only sees local queue conditions without understanding downstream effects of delays.
 
 ## Traditional Autoscaling: The Queue Length Approach
 
@@ -51,7 +51,7 @@ Queue-based autoscaling has critical drawbacks for unpredictable pipelines:
 
 By the time Model 2 (the bottleneck) detects a high queue length and scales up, Models 1 and 3 may have already processed requests that will wait at Model 2, causing SLA violations.
 
-## The RemainingSlack Policy: SLA-Aware Autoscaling
+## SLA-Aware Autoscaling: The RemainingSlack Policy
 
 ### Core Concept
 
@@ -98,7 +98,7 @@ class MyModel:
     def __init__(self):
         self.latency_history = deque(maxlen=100)  # Keep last 100 latencies
         self.workload = DNNModel(
-            model="YOLOv9",  # 3 seconds base time
+            model="YOLOv9",
             # ...
         )
 
@@ -231,13 +231,14 @@ At low request loads (5 req/s), the queue length based scaling behaves similarly
 
 As load increases beyond 10 req/s, the default policy's reactive nature causes significant delays in scaling as requests queue up, while the SLA-aware policy's proactive approach prevents long queues from forming. Even when spikes in deployment processing time occur, the application's end-to-end latency remains stable using this custom autoscaling policy.
 
-These improvements directly improve customer experience through consistent service delivery and resource efficiency through better scaling decisions. The Slack policy makes coordinated decisions across the entire pipeline and maintains stable performance across different load levels, as evidenced by less variance in both p95 latency and SLA compliance. This simple example demonstrates how to use the API; performance can be tuned further to tighter tolerances for even more stringent SLAs.
+### Why these improvements matter
+These improvements directly improve customer experience through consistent service delivery. The RemainingSlack policy makes coordinated decisions across the entire pipeline and maintains stable performance across a wide range of request load levels, as evidenced by less variance in both p95 latency and SLA violation rate. A stable deployment also improves long-term resource efficiency and helps cost management, by having fewer outages/timeouts downstream of the application. This simple example demonstrates how to use the API; performance can be tuned further to tighter tolerances for even more stringent SLAs, and predictive autoscaling signals.
 
 ## Real-World Applications
 
 Custom autoscaling policies apply to:
 - **LLM serving chains**: Tokenization → embedding → generation → post-processing with unpredictable outputs
-- **Multi-modal pipelines**: Preprocessing → feature extraction → classification with resources tailored to each stage's complexity
+- **Multi-modal pipelines**: Preprocessing → feature extraction → classification with resources tailored to each stage and data modalities' complexity
 - **Data workflows**: ETL pipelines with variable processing times where proactive scaling prevents bottlenecks
 
 ## Conclusion
@@ -248,7 +249,7 @@ The RemainingSlack policy demonstrates Ray Serve's custom autoscaling API capabi
 - **Up to 13% improvement in average latency**
 - **Consistent, stable performance across all request load levels**
 
-When used with the metrics aggregation API, it gives Ray developers the ultimate flexibility to tune performance to their domain specific use cases and customer requirements.
+When used with the [metrics aggregation API](https://docs.ray.io/en/latest/serve/advanced-guides/advanced-autoscaling.html#stage-3-metric-aggregation), it gives Ray developers the ultimate flexibility to tune performance to their domain specific use cases and customer requirements.
 
 ## Future Directions
 
@@ -262,9 +263,9 @@ The RemainingSlack policy demonstrates the power of Ray Serve's custom autoscali
 ---
 
 **References:**
-- [Benchmark Script](python/ray/serve/tests/run_sequential_performance_test_sweep.py:1)
-- [Test Results](sequential_load_test_sweep_results_1763763808.json:1)
-- [RemainingSlack Policy Implementation](python/ray/serve/tests/sequential_performance_load_test_demo.py:34)
-- [Configuration Example](python/ray/serve/tests/sequential_performance_load_test_config.yaml:1)
+- [Benchmark Script](./python/ray/serve/tests/run_sequential_performance_test_sweep.py)
+- [Benchmark Results](./sweep_results)
+- [RemainingSlack Policy Implementation](./python/ray/serve/tests/sequential_performance_load_test_demo.py)
+- [Configuration Example](./python/ray/serve/tests/sequential_performance_load_test_config.yaml)
 - [REP](https://github.com/ray-project/enhancements/pull/56#issuecomment-2493932035)
 - [Cloudwatch API integration](https://github.com/ray-project/ray/issues/41135#issue-1993639174)
